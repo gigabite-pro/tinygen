@@ -14,6 +14,14 @@ A simple Codegen.
 ```
 - It should return a diff of the main file with the updated code.
 
+## To run on your machine
+- Install the python-venv package using `pip install python-venv`.
+- Create a virtual-env called `tiny-venv` using `python -m venv tiny-venv`.
+- Install the packages using `pip install -r requirements.txt`. 
+- Start the server using `uvicorn app:app --host 0.0.0.0`.
+- If `pip` and  `python` don't work, try using `pip3` and `python3`.
+- To start the app in hot-reload mode, run `uvicorn app:app --reload`.
+
 ## What all I used
 - OpenAI API
 - FastApi
