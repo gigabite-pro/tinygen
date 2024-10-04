@@ -71,9 +71,6 @@ def tinify(command: CommandRequest):
     gpt_suggestion = gpt_suggestion[9:-3]
     
     diff = '\n'.join(difflib.unified_diff(file_content.splitlines(keepends=True), gpt_suggestion.splitlines(keepends=True), lineterm=''))
-    # response = {
-    #     "diff": diff.replace('\n', '\\n').replace('\r', '\\r')
-    #     }
 
     response = (
     supabase.table("tinygen")
