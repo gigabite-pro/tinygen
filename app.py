@@ -1,33 +1,13 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
-from typing import Dict
 from fastapi.middleware.cors import CORSMiddleware
-import requests
-from openai import OpenAI
+from models.command_request import CommandRequest
+from services.github_service import get_user_repo_from_github_url, get_github_files, fetch_file_content
+from services.openai_service import send_openAI_request
+from services.supabase_service import save_to_supabase
 import json
-import os
-from urllib.parse import urlparse
 import difflib
-from supabase import create_client, Client
-from dotenv import load_dotenv
-
-load_dotenv()
-
-OPEN_AI_KEY = os.getenv('OPEN_AI_KEY')
-SUPABASE_URL = os.getenv('SUPABASE_URL')
-SUPABASE_KEY = os.getenv('SUPABASE_KEY')
-
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-client = OpenAI(
-    api_key = OPEN_AI_KEY
-)
 
 app = FastAPI()
-
-class CommandRequest(BaseModel):
-    repoUrl: str
-    prompt: str
 
 allowed_origins = ["*"]
 
@@ -72,80 +52,6 @@ def tinify(command: CommandRequest):
     
     diff = '\n'.join(difflib.unified_diff(file_content.splitlines(keepends=True), gpt_suggestion.splitlines(keepends=True), lineterm=''))
 
-    response = (
-    supabase.table("tinygen")
-    .insert({"repo_url": repo_url, "prompt": prompt, "diff": diff})
-    .execute()
-    )
+    save_to_supabase(repo_url, prompt, diff)
 
     return diff
-
-def get_user_repo_from_github_url(github_url):
-    # Parse the GitHub URL
-    parsed_url = urlparse(github_url)
-
-    # Check if the URL is from GitHub
-    if parsed_url.netloc != 'github.com':
-        return "Invalid GitHub URL"
-
-    # Split the path to extract user and repo
-    path_parts = parsed_url.path.strip('/').split('/')
-    
-    if len(path_parts) < 2:
-        return "Invalid GitHub repository URL"
-
-    user = path_parts[0]
-    repo = path_parts[1]
-
-    return user, repo
-
-
-def fetch_file_content(file, user, repo):
-    raw_url = f'https://raw.githubusercontent.com/{user}/{repo}/refs/heads/main/{file}'
-    response = requests.get(raw_url)
-    if response.status_code == 200:
-        return response.text
-    else:
-        return f"Error: Unable to fetch content, status code {response.status_code}"
-
-def send_openAI_request(prompt="", optional_text=""):
-    # print(optional_text)
-    completion = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "user", "content": f'{prompt}. {optional_text}'},
-        ],
-        store=True
-    )
-
-    return completion.choices[0].message.content
-
-def get_github_files(repo_url):
-    parts = repo_url.rstrip('/').split('/')
-    if len(parts) < 5 or parts[-3] != "github.com":
-        return {"error": "Invalid GitHub repository URL."}
-
-    owner, repo = parts[-2], parts[-1]
-
-    api_url = f"https://api.github.com/repos/{owner}/{repo}/contents"
-
-    response = requests.get(api_url)
-
-    if response.status_code == 200:
-        files = []
-        contents = response.json()
-
-        def fetch_files(contents):
-            for item in contents:
-                if item['type'] == 'file':
-                    files.append(item['path'])
-                elif item['type'] == 'dir':
-                    dir_response = requests.get(item['url'])
-                    if dir_response.status_code == 200:
-                        fetch_files(dir_response.json())
-
-        fetch_files(contents)
-
-        return files
-    else:
-        return {"error": "Failed to fetch repository content. Make sure the repository is public and exists."}
